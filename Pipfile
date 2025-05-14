@@ -1,0 +1,17 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[requires]
+python_version = "3.9"
+
+[packages]
+django = "==3.2.23"
+djangorestframework = "*"
+requests = "*"
+pandas = "*"
+geopy = "*"
+openrouteservice = "*"
+
+[dev-packages]

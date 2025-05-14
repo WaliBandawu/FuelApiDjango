@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Route Optimizer</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map { height: 70vh; margin-bottom: 20px; }
+    body { font-family: sans-serif; padding: 20px; }
+    form { margin-bottom: 10px; }
+    #summary { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Fuel-Optimized Route</h1>
+
+  <form id="route-form">
+    <label>Start: <input type="text" name="start" required></label><br>
+    <label>Destination: <input type="text" name="destination" required></label><br>
+    <button type="submit">Optimize</button>
+  </form>
+
+  <div id="map"></div>
+  <div id="summary"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([39.5, -98.35], 4); // Center on USA
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let routeLayer;
+    let stopMarkers = [];
+
+    document.getElementById('route-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const start = e.target.start.value;
+      const destination = e.target.destination.value;
+
+      const response = await fetch('/api/optimize-route/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start, destination })
+      });
+
+      if (!response.ok) {
+        alert("Route error: " + response.statusText);
+        return;
+      }
+
+      const data = await response.json();
+      const coords = data.route_geometry.coordinates.map(coord => [coord[1], coord[0]]); // [lat, lon]
+
+      if (routeLayer) {
+        map.removeLayer(routeLayer);
+      }
+      stopMarkers.forEach(marker => map.removeLayer(marker));
+      stopMarkers = [];
+
+      routeLayer = L.polyline(coords, { color: 'blue' }).addTo(map);
+      map.fitBounds(routeLayer.getBounds());
+
+      // Add fuel stop markers
+      data.optimal_stops.forEach(stop => {
+        const marker = L.marker([stop.station_lat, stop.station_lon]).addTo(map);
+        marker.bindPopup(`
+          <b>${stop.station_name}</b><br>
+          ${stop.station_address}<br>
+          Price: $${stop.price.toFixed(3)}<br>
+          Gallons: ${stop.gallons}
+        `);
+        stopMarkers.push(marker);
+      });
+
+      // Show summary
+      document.getElementById('summary').innerHTML = `
+        <h3>Summary</h3>
+        <p><b>Start:</b> ${data.start}</p>
+        <p><b>Destination:</b> ${data.destination}</p>
+        <p><b>Distance:</b> ${data.distance_miles.toFixed(2)} miles</p>
+        <p><b>Fuel Needed:</b> ${data.fuel_needed_gallons.toFixed(2)} gallons</p>
+        <p><b>Total Fuel Cost:</b> $${data.total_fuel_cost_usd.toFixed(2)}</p>
+      `;
+    });
+  </script>
+</body>
+</html>
